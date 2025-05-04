@@ -5,6 +5,7 @@ from typing import List
 from dotenv import load_dotenv
 from crewai_tools import FileWriterTool
 from crewai_tools import FileReadTool
+from crewai.knowledge.source.text_file_knowledge_source import TextFileKnowledgeSource
 
 load_dotenv()
 # If you want to run a snippet of code before or after the crew starts,
@@ -13,7 +14,9 @@ load_dotenv()
 file_writer = FileWriterTool()
 file_reader = FileReadTool()
 
-
+text_source = TextFileKnowledgeSource(
+    file_paths=["user_preference.txt"]
+)
 
 
 
@@ -37,7 +40,7 @@ class DataManagementCrew():
             verbose=True,
             tools=[file_writer]
         )
-    
+
     @agent
     def ETLDesigner(self) -> Agent:
         return Agent(
@@ -47,11 +50,21 @@ class DataManagementCrew():
         )
 
     @agent
+    def knowledge_agent(self) -> Agent:
+        return Agent(
+            config=self.agents_config['knowledge_agent'],
+            verbose=True,
+            tools=[file_reader],
+            knowledge_sources=[text_source]
+        )
+
+
+    @agent
     def DataEngineer(self) -> Agent:
         return Agent(
             config=self.agents_config['DataEngineer'],  # type: ignore[index]
             verbose=True,
-            tools=[file_writer, file_reader]
+            tools=[file_writer]
         )
 
     # To learn more about structured task outputs,
@@ -68,6 +81,15 @@ class DataManagementCrew():
         return Task(
             config=self.tasks_config['etl_design_task'],  # type: ignore[index]
         )
+
+    @task
+    def knowledge_fetch_task(self) -> Task:
+        return Task(
+            # type: ignore[index]
+            config=self.tasks_config['knowledge_fetch_task'],
+        )
+
+
     @task
     def dag_build_task(self) -> Task:
         return Task(

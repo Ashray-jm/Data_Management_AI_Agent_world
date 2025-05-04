@@ -1,38 +1,35 @@
-airflow_dag_id: spotify_history_dag
+airflow_dag_id: "spotify_history_processing"
 cron_expression: "30 6 * * *"
 sensor:
   type: "S3KeySensor"
   bucket: "datasets-agentic-ai"
   key_template: "spotify_history.csv"
-  poke_interval: 30
+  poke_interval: 300
   timeout: 600
 load:
-  operator: "RedshiftCopyOperator"
+  operator: "RedshiftToS3Operator"
   schema: "public"
   table: "stg_spotify_history_raw"
-  copy_options: "FORMAT AS CSV"
-  conn_ids: "redshift-cluster-1-airflow"
+  copy_options: "CSV"
+  conn_ids: "redshift_conn_id"
 transform_sql: |
-  CREATE TABLE IF NOT EXISTS public.spotify_history_clean AS (
-    SELECT 
-      TRIM(track_name) AS track_name,
-      TRIM(artist_name) AS artist_name,
-      TRIM(album_name) AS album_name,
-      TRIM(platform) AS platform,
-      CAST(ms_played AS INT) AS ms_played,
-      (ms_played / 1000) AS play_seconds,
-      CAST(ts AS TIMESTAMP WITH TIME ZONE) AS ts
-    FROM 
-      public.stg_spotify_history_raw
-    WHERE 
-      spotify_track_uri IS NOT NULL AND ts IS NOT NULL
-    GROUP BY 
-      spotify_track_uri, ts
-    ORDER BY 
-      ts DESC
-  );
+  CREATE TABLE IF NOT EXISTS public.spotify_history_clean AS
+  SELECT DISTINCT
+    TRIM(sp.spotify_track_uri) AS spotify_track_uri,
+    CAST(ts AS TIMESTAMP WITH TIME ZONE) AS ts,
+    TRIM(sp.platform) AS platform,
+    ms_played / 1000 AS play_seconds,
+    TRIM(sp.track_name) AS track_name,
+    TRIM(sp.artist_name) AS artist_name,
+    TRIM(sp.album_name) AS album_name,
+    TRIM(sp.reason_start) AS reason_start,
+    TRIM(sp.reason_end) AS reason_end,
+    CAST(sp.shuffle AS BOOLEAN) AS shuffle,
+    CAST(sp.skipped AS BOOLEAN) AS skipped
+  FROM public.stg_spotify_history_raw sp
+  WHERE sp.spotify_track_uri IS NOT NULL AND sp.ts IS NOT NULL;
 sla_time: "07:30 ET"
 retries: 3
 retry_delay_minutes: 5
-alert_conn_id: "alert_email"
-output_filename: "dags/{{ airflow_dag_id }}.py"
+alert_conn_id: "alert_conn"
+output_filename: "dags/spotify_history_processing.py"

@@ -1,4 +1,4 @@
-# envirnonment details
+# connections_knowledge.yaml
 s3_default:
   type: S3
   description: “Raw data landing bucket for all agentic AI ingest pipelines”

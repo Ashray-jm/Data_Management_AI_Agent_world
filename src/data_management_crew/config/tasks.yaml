@@ -37,12 +37,27 @@ etl_design_task:
   expected_output: >
     Confirmation that tech_design.yaml was written.
 
+  
+knowledge_fetch_task:
+  agent: knowledge_agent   # ← must match your agents section
+  description: >
+    provide environment metadata using knowledge_souce  to help data_engineer agent write relevant code for the requirement.
+    read the tech_design.yaml using file_reader and provide the following metadata usefeul for the data_engineer agent:
+      • connections {type, description, bucket_name, prefix, aws_conn_id}  
+      • Operators to Use
+      • Redshift {cluster_identifier, database, db_user, iam_role, aws_conn_id}
+      • DAG Structure 
+      • Any important notes or considerations for the data_engineer agent to keep in mind while writing the code.
+  expected_output: >
+    Provide a detail knowledge to help data_engineer agent write relevant code for the requirement.
+
 dag_build_task:
   agent: DataEngineer   # ← must match your agents section
   description: >
-    Using the Analyst’s specification, design and implement a production‑ready
-    Airflow 2.x DAG that ingests, transforms, and delivers the data according
-    to all stated requirements. Ensure high code quality with docstrings,
+    Using the knowledge_agent specifications, design and implement a production‑ready
+    Airflow 2.x DAG that implments the requirement 
+    use proper connections and operators infromation provided by the knowledge_agent.
+    Ensure high code quality with docstrings,
     retries, alerts, and task‑grouping where appropriate. Use FileWriterTool to save the file as "<dag_id.py>"
 
      **Once the code is finalized**, call **FileWriterTool** with:
