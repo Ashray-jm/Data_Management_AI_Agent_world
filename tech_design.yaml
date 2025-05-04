@@ -1,0 +1,38 @@
+airflow_dag_id: spotify_history_dag
+cron_expression: "30 6 * * *"
+sensor:
+  type: "S3KeySensor"
+  bucket: "datasets-agentic-ai"
+  key_template: "spotify_history.csv"
+  poke_interval: 30
+  timeout: 600
+load:
+  operator: "RedshiftCopyOperator"
+  schema: "public"
+  table: "stg_spotify_history_raw"
+  copy_options: "FORMAT AS CSV"
+  conn_ids: "redshift-cluster-1-airflow"
+transform_sql: |
+  CREATE TABLE IF NOT EXISTS public.spotify_history_clean AS (
+    SELECT 
+      TRIM(track_name) AS track_name,
+      TRIM(artist_name) AS artist_name,
+      TRIM(album_name) AS album_name,
+      TRIM(platform) AS platform,
+      CAST(ms_played AS INT) AS ms_played,
+      (ms_played / 1000) AS play_seconds,
+      CAST(ts AS TIMESTAMP WITH TIME ZONE) AS ts
+    FROM 
+      public.stg_spotify_history_raw
+    WHERE 
+      spotify_track_uri IS NOT NULL AND ts IS NOT NULL
+    GROUP BY 
+      spotify_track_uri, ts
+    ORDER BY 
+      ts DESC
+  );
+sla_time: "07:30 ET"
+retries: 3
+retry_delay_minutes: 5
+alert_conn_id: "alert_email"
+output_filename: "dags/{{ airflow_dag_id }}.py"

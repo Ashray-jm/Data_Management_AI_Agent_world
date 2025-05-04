@@ -1,0 +1,58 @@
+
+
+analysis_task:
+  agent: Analyst         # ← must match your agents section
+  description: >
+    Examine the natural‑language business requirement below and translate it
+    into a developer‑ready **Data Engineering Task Specification** containing:
+      • Task Description  
+      • Source Datasets & Interfaces  
+      • Required Transformations / Business Rules  
+      • Target Tables / Files & Data Model  
+      • Schedule / SLA  
+      • Dependencies & Orchestration Hints  
+      • Acceptance Criteria  
+      • Assumptions & Open Questions  
+
+    ---  
+    {requirement} 
+    ---
+  expected_output: >
+    A markdown document  titled “Data Engineering Task Specification” with
+    the sections listed above saved as "report.md" using tool file_writer
+
+etl_design_task:
+  agent: ETLDesigner   # ← must match your agents section
+  description: >
+    Read `report.md` and produce **tech_design.yaml** containing:
+      • airflow_dag_id  
+      • cron_expression  
+      • sensor {type, bucket, key_template, poke_interval, timeout}  
+      • load {operator, schema, table, copy_options, conn_ids}  
+      • transform_sql (Redshift CTAS with casts, trims, dedup)  
+      • sla_time (07:30 ET)  
+      • retries, retry_delay_minutes, alert_conn_id  
+      • output_filename (dags/<generated_dag_id>.py)
+    Save the YAML via FileWriterTool.
+  expected_output: >
+    Confirmation that tech_design.yaml was written.
+
+dag_build_task:
+  agent: DataEngineer   # ← must match your agents section
+  description: >
+    Using the Analyst’s specification, design and implement a production‑ready
+    Airflow 2.x DAG that ingests, transforms, and delivers the data according
+    to all stated requirements. Ensure high code quality with docstrings,
+    retries, alerts, and task‑grouping where appropriate. Use FileWriterTool to save the file as "<dag_id.py>"
+
+     **Once the code is finalized**, call **FileWriterTool** with:
+      {
+        "filename": "<airflow_dag_id>.py",
+        "overwrite": true,
+        "content": "<entire Python DAG code here>"
+      }
+  expected_output: >
+    A single Python filcontaining the complete, annotated
+    DAG definition—ready for deployment in an Airflow environment make sure it is saved as "<dag_id.py>" using tool file_writer
+
+
