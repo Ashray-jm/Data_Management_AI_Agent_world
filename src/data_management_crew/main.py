@@ -24,28 +24,29 @@ def run():
         "requirement": dedent("""
             A single CSV file named spotify_history.csv is written every day
             around 06:30 ET to s3://datasets-agentic-ai/.
-
             Columns in the file:
-              * spotify_track_uri (STRING)
-              * ts (TIMESTAMP in ISO‑8601, UTC)
-              * platform (STRING)
-              * ms_played (INTEGER, milliseconds)
-              * track_name, artist_name, album_name (STRING)
-              * reason_start, reason_end (STRING)
-              * shuffle, skipped (BOOLEAN encoded as 'true'/'false')
-
+            [spotify_track_uri character varying(256) ENCODE lzo,
+            ts timestamp without time zone ENCODE az64,
+            platform character varying(256) ENCODE lzo,
+            ms_played integer ENCODE az64,
+            track_name character varying(2000) ENCODE lzo,
+            artist_name character varying(256) ENCODE lzo,
+            album_name character varying(256) ENCODE lzo,
+            reason_start character varying(256) ENCODE lzo,
+            reason_end character varying(256) ENCODE lzo,
+            shuffle boolean ENCODE raw,
+            skipped boolean ENCODE raw]     
+            
             Build a data pipeline that:
-              1. Waits for the new file each day.
+              1. Waits for the new file each day in s3.
               2. Copies it into Amazon Redshift cluster 'redshift-cluster-1-airflow',
-                 database 'dev', schema 'public', staging table
-                 'stg_spotify_history_raw'.
+                 database 'dev', schema 'spotify_database', staging table
+                 'spotify_upload_new'.
               3. Creates / replaces an analytics table 'spotify_history_clean'
                  applying these rules:
-                 • Trim whitespace on all string columns.
-                 • CAST ms_played -> INT, derive play_seconds = ms_played/1000.
-                 • CAST ts -> TIMESTAMP WITH TIME ZONE.
-                 • Filter out rows where spotify_track_uri OR ts is NULL.
-                 • Remove duplicates on (spotify_track_uri, ts) keeping the latest.
+                 - Create a new table if it does not exist
+                 - Use the same columns as the staging table, but with the following changes:
+                 - Concat ms_played and platform as 'test_column'
               4. Makes the clean table available by 07:30 ET daily.
 
         """).strip(),

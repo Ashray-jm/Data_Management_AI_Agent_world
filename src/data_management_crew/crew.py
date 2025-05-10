@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from crewai_tools import FileWriterTool
 from crewai_tools import FileReadTool
 from crewai.knowledge.source.text_file_knowledge_source import TextFileKnowledgeSource
+from crewai.knowledge.source.json_knowledge_source import JSONKnowledgeSource
+
+
 
 load_dotenv()
 # If you want to run a snippet of code before or after the crew starts,
@@ -16,6 +19,10 @@ file_reader = FileReadTool()
 
 text_source = TextFileKnowledgeSource(
     file_paths=["user_preference.txt"]
+)
+
+json_source = JSONKnowledgeSource(
+    file_paths=["connections.json"]
 )
 
 
@@ -55,7 +62,7 @@ class DataManagementCrew():
             config=self.agents_config['knowledge_agent'],
             verbose=True,
             tools=[file_reader],
-            knowledge_sources=[text_source]
+            knowledge_sources=[json_source]
         )
 
 

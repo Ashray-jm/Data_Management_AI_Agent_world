@@ -24,16 +24,18 @@ analysis_task:
 etl_design_task:
   agent: ETLDesigner   # ← must match your agents section
   description: >
-    Read `report.md` and produce **tech_design.yaml** containing:
-      • airflow_dag_id  
-      • cron_expression  
-      • sensor {type, bucket, key_template, poke_interval, timeout}  
-      • load {operator, schema, table, copy_options, conn_ids}  
-      • transform_sql (Redshift CTAS with casts, trims, dedup)  
-      • sla_time (07:30 ET)  
-      • retries, retry_delay_minutes, alert_conn_id  
-      • output_filename (dags/<generated_dag_id>.py)
-    Save the YAML via FileWriterTool.
+      Read `report.md` Understands the ETL Process involved and produce  detailed analyzed `tech_design.yaml` 
+      that will be used by the DataEngineer agent to build the Airflow DAG.
+      The `tech_design.yaml` should contain the following detailed relevant information:
+        • DAG ID, schedule interval, start date, end date, catchup
+        • Task IDs,
+        • Source_file_location,
+        • Target_table_location (Database,Schema,Table),
+        • Task dependencies
+        • SQL queries for data transformation usind RedshiftDataOperator
+        • Any other relevant metadata or notes for the DataEngineer agent
+        • Requirement in few words.
+      Save the YAML via FileWriterTool.
   expected_output: >
     Confirmation that tech_design.yaml was written.
 
@@ -41,21 +43,36 @@ etl_design_task:
 knowledge_fetch_task:
   agent: knowledge_agent   # ← must match your agents section
   description: >
-    provide environment metadata using knowledge_souce  to help data_engineer agent write relevant code for the requirement.
-    read the tech_design.yaml using file_reader and provide the following metadata usefeul for the data_engineer agent:
-      • connections {type, description, bucket_name, prefix, aws_conn_id}  
-      • Operators to Use
-      • Redshift {cluster_identifier, database, db_user, iam_role, aws_conn_id}
-      • DAG Structure 
-      • Any important notes or considerations for the data_engineer agent to keep in mind while writing the code.
+    using knowledge_souce and read the tech_design.yaml using file_reader to help data_engineer agent write relevant code for the requirement.
+    Direct the DataEngineer agent to the relevant connections and operators in the knowledge source.
+    Provide the technical details for DataEngineer agent to write relevant code for the requirement.
+    Ensure proper imports and Operators are used in the DAG. 
+    -provide connection details {type, description, bucket_name, prefix, aws_conn_id, imports ... }  
+    -coding methods 
+    -DAG Structure
+    -Operators to use 
+    -example code snippets
+    -Redshift {cluster_identifier, database, db_user, iam_role, aws_conn_id}
+    and any other relevant information to help the data_engineer agent write production ready airflow dags. 
   expected_output: >
-    Provide a detail knowledge to help data_engineer agent write relevant code for the requirement.
+    Provide a detail knowledge to help data_engineer agent write relevant code that satisfies requirement.
+    -requirement in few words.
+    -provide connection details {type, description, bucket_name, prefix, aws_conn_id, imports ... }  
+    -coding methods 
+    -DAG Structure
+    -Operators to use 
+    -example code snippets
+    -Redshift {cluster_identifier, database, db_user, iam_role, aws_conn_id}
+    and any other relevant information to help the data_engineer agent write production ready airflow dags.
 
 dag_build_task:
   agent: DataEngineer   # ← must match your agents section
   description: >
     Using the knowledge_agent specifications, design and implement a production‑ready
-    Airflow 2.x DAG that implments the requirement 
+    Airflow 3. DAG that implments the requirement with proper DAG structure and Operators.
+    Ensure Transfomation SQL Logic is correct and Business rules are implemented as per the requirement.
+    Ensure Op
+    Reverify the logic and flow of the DAG to ensure it meets the requirement.
     use proper connections and operators infromation provided by the knowledge_agent.
     Ensure high code quality with docstrings,
     retries, alerts, and task‑grouping where appropriate. Use FileWriterTool to save the file as "<dag_id.py>"

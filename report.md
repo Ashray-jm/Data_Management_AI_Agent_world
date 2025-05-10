@@ -1,64 +1,50 @@
 # Data Engineering Task Specification
 
 ## Task Description  
-Build a data pipeline that processes daily Spotify history data from a CSV file, performs necessary transformations, and stores it in a Redshift cluster for analytics purposes.
+Build a data pipeline that processes the daily CSV file `spotify_history.csv` from S3, transforms the data as per defined rules, and loads it into a Redshift analytics table.
 
 ## Source Datasets & Interfaces  
-- **Source File**: s3://datasets-agentic-ai/spotify_history.csv  
-- **Columns in the file**:  
-  - spotify_track_uri (STRING)  
-  - ts (TIMESTAMP in ISO-8601, UTC)  
-  - platform (STRING)  
-  - ms_played (INTEGER, milliseconds)  
-  - track_name (STRING)  
-  - artist_name (STRING)  
-  - album_name (STRING)  
-  - reason_start (STRING)  
-  - reason_end (STRING)  
-  - shuffle (BOOLEAN encoded as 'true'/'false')  
-  - skipped (BOOLEAN encoded as 'true'/'false')  
+- **Source CSV file:** `spotify_history.csv`  
+- **Location:** `s3://datasets-agentic-ai/`  
+- **Columns:**  
+  - spotify_track_uri (character varying(256))  
+  - ts (timestamp without time zone)  
+  - platform (character varying(256))  
+  - ms_played (integer)  
+  - track_name (character varying(2000))  
+  - artist_name (character varying(256))  
+  - album_name (character varying(256))  
+  - reason_start (character varying(256))  
+  - reason_end (character varying(256))  
+  - shuffle (boolean)  
+  - skipped (boolean)  
 
 ## Required Transformations / Business Rules  
-1. Trim whitespace on all string columns.  
-2. CAST ms_played -> INT and derive play_seconds = ms_played / 1000.  
-3. CAST ts -> TIMESTAMP WITH TIME ZONE.  
-4. Filter out rows where spotify_track_uri OR ts is NULL.  
-5. Remove duplicates on (spotify_track_uri, ts), keeping the latest record.
+1. Concat `ms_played` and `platform` values as `test_column` in the `spotify_history_clean` table.
 
 ## Target Tables / Files & Data Model  
-- **Staging Table**:  
-  - Name: stg_spotify_history_raw  
-  - Database: dev  
-  - Schema: public  
+- **Staging Table:**  
+  - Name: `spotify_upload_new`  
+  - Database: `dev`  
+  - Schema: `spotify_database`
 
-- **Analytics Table**:  
-  - Name: spotify_history_clean  
-  - Structure:
-    - spotify_track_uri (STRING)  
-    - ts (TIMESTAMP WITH TIME ZONE)  
-    - platform (STRING)  
-    - play_seconds (INT)  
-    - track_name (STRING)  
-    - artist_name (STRING)  
-    - album_name (STRING)  
-    - reason_start (STRING)  
-    - reason_end (STRING)  
-    - shuffle (BOOLEAN)  
-    - skipped (BOOLEAN)  
+- **Analytics Table:**  
+  - Name: `spotify_history_clean`  
+  - Structure: Same columns as the staging table + `test_column`
 
 ## Schedule / SLA  
-- The pipeline should run daily, starting at 06:30 ET to pick up the new CSV file and complete the processing by 07:30 ET.
+- Daily execution of the pipeline at approximately 06:30 ET to load data from S3, with completion of the clean table available by 07:30 ET.
 
 ## Dependencies & Orchestration Hints  
-- The task depends on the successful arrival of the spotify_history.csv file in the specified S3 bucket.  
-- The data pipeline should leverage Apache Airflow for orchestration to ensure proper scheduling and dependency management.
+- Ensure that Airflow is scheduled to run at 06:00 ET to check for the availability of the file in S3.
+- Confirm the Redshift cluster `redshift-cluster-1-airflow` is up and accessible prior to execution.
 
 ## Acceptance Criteria  
-1. The pipeline successfully copies the CSV file to the Redshift staging table.  
-2. The analytics table 'spotify_history_clean' is created/replaced daily and meets defined business rules.  
-3. The table is available by 07:30 ET daily without errors.
+1. The pipeline successfully identifies and processes the new `spotify_history.csv` file every day.  
+2. Data is correctly copied into the staging table `spotify_upload_new`.  
+3. The `spotify_history_clean` table is created/replaced and contains the expected transformations.  
+4. The clean table is made available by 07:30 ET.
 
 ## Assumptions & Open Questions  
-- Assumption: The CSV file structure will remain consistent.  
-- Assumption: Amazon Redshift cluster and appropriate permissions are already set up.  
-- Open Question: Are there any specific data retention policies or old data cleanup requirements for the analytics table?
+- Assumption: The source CSV file will always be present in the specified S3 location by 06:30 ET.  
+- Open Question: What should be the handling mechanism for the cases when the file is not found or is corrupted?

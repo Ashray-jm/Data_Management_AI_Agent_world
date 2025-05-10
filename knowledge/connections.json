@@ -1,0 +1,119 @@
+{
+    "$connections": [
+        {
+            "name": "aws_connections",
+            "aws_conn_id": "aws_default",
+            "bucket_name": "datasets-agentic-ai",
+            "description": "A collection of connections to AWS resources.",
+            "type": "S3",
+            "IAM_ROLE": "arn:aws:iam::953247154202:role/redshift-s3",
+            "dag_imports" : ["from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor"],
+            "required": [
+                "connections"
+            ]
+        },
+        {
+            "name": "gcs_connections",
+            "gcs_conn_id": "gcs_default",
+            "bucket_name": "datasets-agentic-ai",
+            "description": "A collection of connections to GCS resources.",
+            "type": "GCS",
+            "required": [
+                "connections"
+            ]
+        }
+    ],
+    "$schema": [
+        {
+            "name": "spotify_database",
+            "description": "A schema for the connections.",
+            "type": "Redshift",
+            "database": "dev",
+            "db_user": "awsuser",
+            "aws_conn_id": "aws_default",
+            "table_list": [
+                "spotify_upload_new"
+            ]
+        }
+    ],
+    "$operators": [
+        {
+            "name": "RedshiftDataOperator",
+            "imports": [
+                "from airflow.providers.amazon.aws.operators.redshift_data import RedshiftDataOperator"
+            ],
+            "description": "Executes SQL Statements against an Amazon Redshift cluster using Redshift Data.",
+            "parameters_list": [
+                {
+                    "database": {
+                        "type": "string",
+                        "description": "The name of the database to run the SQL statement against.",
+                        "required": true
+                    },
+                    "sql": {
+                        "type": "string or list of strings",
+                        "description": "The SQL statement(s) to execute. Can be a single string or a list of SQL statements.",
+                        "required": true
+                    },
+                    "cluster_identifier": {
+                        "type": "string",
+                        "description": "The unique identifier of the Redshift cluster.",
+                        "required": false
+                    },
+                    "db_user": {
+                        "type": "string",
+                        "description": "The database user name.",
+                        "required": false
+                    },
+                    "parameters": {
+                        "type": "list",
+                        "description": "A list of parameters for parameterized queries.",
+                        "required": false
+                    },
+                    "secret_arn": {
+                        "type": "string",
+                        "description": "The name or ARN of the secret that enables access to the database.",
+                        "required": false
+                    },
+                    "statement_name": {
+                        "type": "string",
+                        "description": "The name of the SQL statement. Useful for tracking and logging.",
+                        "required": false
+                    },
+                    "with_event": {
+                        "type": "boolean",
+                        "description": "Indicates whether to send an event to EventBridge after the statement runs.",
+                        "default": false,
+                        "required": false
+                    },
+                    "await_result": {
+                        "type": "boolean",
+                        "description": "Indicates whether to wait for the result of the statement execution.",
+                        "default": true,
+                        "required": false
+                    },
+                    "poll_interval": {
+                        "type": "integer",
+                        "description": "The interval in seconds to wait between checks for the statement's status.",
+                        "default": 10,
+                        "required": false
+                    },
+                    "aws_conn_id": {
+                        "type": "string",
+                        "description": "The Airflow connection ID to use for AWS credentials.",
+                        "default": "aws_default",
+                        "required": false
+                    },
+                    "region": {
+                        "type": "string",
+                        "description": "The AWS region where the Redshift cluster is located.",
+                        "required": false
+                    }
+                }
+            ],
+            "Example_code_implemntation": {
+                "python": "\n\"\"\"\nAirflow DAG for processing Spotify history data from S3 to Amazon Redshift.\n\nThis DAG waits for a CSV file in S3, loads it into a staging table in Redshift,\nthen uses the Redshift Data API to create/transform the analytics table.\nIt runs daily at 06:30.\n\"\"\"\n\nfrom airflow import DAG\nfrom airflow.providers.amazon.aws.sensors.s3 import S3KeySensor\nfrom airflow.providers.amazon.aws.transfers.s3_to_redshift import S3ToRedshiftOperator\nfrom airflow.providers.amazon.aws.operators.redshift_data import RedshiftDataOperator\n\nfrom datetime import datetime, timedelta\n\n# Connection/configuration values\n# replace with your cluster identifier\nREDSHIFT_CLUSTER_ID = \"my-redshift-cluster-1\"\n# replace with your database name\nREDSHIFT_DATABASE = \"dev\"\nREDSHIFT_DB_USER = \"awsuser\"              # replace with your DB user\nPOLL_INTERVAL = 10                            # seconds between Data API polls\n\ndefault_args = {\n    'owner': 'airflow',\n    'start_date': datetime(2023, 10, 1),\n    'retries': 3,\n    'retry_delay': timedelta(minutes=5),\n    'email_on_failure': True,\n    'email': ['alert@example.com'],\n}\n\ndag = DAG(\n    dag_id='spotify_history_dag',\n    default_args=default_args,\n    catchup=False,\n)\n\n# 1) Wait for CSV file in S3\nwait_for_file = S3KeySensor(\n    task_id='wait_for_file',\n    bucket_name='datasets-agentic-ai',\n    bucket_key='spotify_history.csv',\n    aws_conn_id='aws_default',\n    poke_interval=30,\n    timeout=600,\n    dag=dag,\n)\n\nload_raw_data = RedshiftDataOperator(\n    task_id='load_raw_data',\n    cluster_identifier='redshift-cluster-1-airflow',\n    database='dev',\n    db_user='awsuser',\n    aws_conn_id='aws_default',\n    sql=\"\"\"\n        COPY spotify_database.spotify_upload_new\n        FROM 's3://datasets-agentic-ai/spotify_history.csv'\n        IAM_ROLE 'arn:aws:iam::953247154202:role/redshift-s3'\n        FORMAT AS CSV\n        IGNOREHEADER 1;\n    \"\"\",\n    statement_name='copy_ingestion_{{ ds }}',\n    wait_for_completion=True,\n    poll_interval=10,\n)\n\ntransform_data = RedshiftDataOperator(\n    task_id=\"transform_data\",\n    cluster_identifier='redshift-cluster-1-airflow',\n    database='dev',\n    aws_conn_id='aws_default',\n    db_user='awsuser',\n    sql=[\n        \"\"\"\nCREATE TABLE IF NOT EXISTS spotify_database.spotify_history_clean (\n    spotify_track_uri VARCHAR(512)   NOT NULL,\n    track_name        VARCHAR(512),\n    artist_name       VARCHAR(512),\n    album_name        VARCHAR(512),\n    platform          VARCHAR(256),\n    ms_played         INT,\n    play_seconds      FLOAT,\n    ts                TIMESTAMPTZ,\n    PRIMARY KEY (spotify_track_uri, ts)\n);\n\nINSERT INTO spotify_database.spotify_history_clean\nSELECT\n    SUBSTRING(u.spotify_track_uri,1,256)         AS spotify_track_uri,\n    SUBSTRING(TRIM(u.track_name),1,256)          AS track_name,\n    SUBSTRING(TRIM(u.artist_name),1,256)         AS artist_name,\n    SUBSTRING(TRIM(u.album_name),1,256)          AS album_name,\n    SUBSTRING(TRIM(u.platform),1,256)            AS platform,\n    CAST(u.ms_played AS INT)                     AS ms_played,\n    u.ms_played/1000.0                           AS play_seconds,\n    CAST(u.ts AS TIMESTAMPTZ)                    AS ts\nFROM spotify_database.spotify_upload_new AS u\nLEFT JOIN spotify_database.spotify_history_clean AS c\n  ON u.spotify_track_uri = c.spotify_track_uri\n AND u.ts              = c.ts\nWHERE u.spotify_track_uri IS NOT NULL\n  AND u.ts IS NOT NULL\n  AND c.spotify_track_uri IS NULL;\n        \"\"\"\n    ],\n    poll_interval=POLL_INTERVAL,\n    wait_for_completion=True,\n    dag=dag,\n)\n\nwait_for_file >> load_raw_data >> transform_data"
+            }
+        }
+    ]
+}
